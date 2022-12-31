@@ -8,6 +8,8 @@ const cron = require('node-cron')
 const sub = require('./models/sub')
 const subs = require('./models/sub')
 
+
+//connection setup
 mongoose.set("strictQuery", false);
 mongoose.connect("mongodb://127.0.0.1:27017/new", {
    useNewUrlParser: true,
@@ -20,81 +22,79 @@ mongoose.connect("mongodb://127.0.0.1:27017/new", {
     }
 })
 
-
+//allow the server to use json
 app.use(express.json())
 
+//link to other routes
 const subsRouter =require('./routes/subs')
 app.use('/subs', subsRouter)
 
-/*
-fetch('http://api.airvisual.com/v2/countries?key=b9987695-8e20-497f-a2b1-e3f568ee53c0')
-.then(res => res.json())
-.then(data => console.log(data))
-*/
-app.get('/', async (req, res) => {
+//get the pollution data from two parameters longitude and latitude
+app.get('/pollution-data/:x/:y',async (req, res) => {
 
-
-    
+        //fetch the data from the api using the two parameters
+        fetch(`http://api.airvisual.com/v2/nearest_city?lat=${req.params.x}&lon=${req.params.y}&key=b9987695-8e20-497f-a2b1-e3f568ee53c0`)
+        //convert to json than parse through to get only the pollution data of that zone
+        .then(ress => ress.json())
+        .then((data)=>{
+            const obj = JSON.parse(JSON.stringify(data))
+            const result = obj.data.current.pollution
+            //send the results 
+            res.send(result)
+        })
   })
-
-
+// build the cron job
   async function getAPI(x,y){
+      // fetch the data from the api than parse it and putting in result
     const apiStream = await fetch(`http://api.airvisual.com/v2/nearest_city?lat=${x}&lon=${y}&key=b9987695-8e20-497f-a2b1-e3f568ee53c0`)
                             .then((apiStream) => apiStream.json())
     const obj = JSON.parse(JSON.stringify(apiStream))
     const result = obj.data.current.pollution.aqius
+    //cron schedule for every minute
     cron.schedule('* * * * *', () => {
+        //create new data from subs schema and passing it the quality of air, the date gets passed automaticly
         const d = new subs({
             quality:result, 
         })
+        //saving it to database
         d.save()
         console.log(d)
     })  
 }
+//calling the function to lunch the cron job
 getAPI(48.856, 2.352)
 
 
-app.get('/aa', (req, res) => {
-const client = new MongoClient("mongodb://127.0.0.1:27017/new");
-const db = client.db("new");
-const coll = db.collection("subs");
+//endpoint to get the datetime where paris zone is most polluted
+app.get('/most-polluted', (req, res) => {
+    // to get the collection where the data is collected
+    const client = new MongoClient("mongodb://127.0.0.1:27017/new");
+    const db = client.db("new");
+    const coll = db.collection("subs");
 
-let arr = []
-let a 
-coll.find({}).project({ quality: 1,date:1,_id: 0})
-.forEach(element => arr.push(element))
-.then(() => {
-    let worst = 0
-    let ress
-    for(i=0;i<arr.length;i++){
-        if (arr[i].quality > worst){
-            worst= arr[i].quality 
-            console.log(i + "   " + worst)
-            ress = i
+    //creating an empty array 
+    let arr = []
+    //query the collection by date and quality 
+    coll.find({}).project({ quality: 1,date:1,_id: 0})
+    //iterating throug each element from the query results
+    .forEach(element => arr.push(element))
+    //creating the function to get the date of the highest pollution point
+    .then(() => {
+        let worst = 0
+        let ress
+        //looping through to find the max and retreiving the index
+        for(i=0;i<arr.length;i++){
+            if (arr[i].quality > worst){
+                worst= arr[i].quality 
+                console.log(i + "   " + worst)
+                ress = i
+            }
         }
-    }
-    res.send(arr[ress].date)
+        //sending the date
+        res.send(arr[ress].date)
+    })
+    .catch(() => {console.log("error")})
 })
-//.catch(() => {console.log("error")})
-
-     console.log(a)
-
-
-})
-
-
-//cursor.forEach(element => arr.push(element));
-
-//let a = cursor.toArray();
-
-
- 
-
-
-
-
-
-
 
 
 
