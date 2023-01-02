@@ -1,4 +1,4 @@
-//require('dotenv').config()
+require('dotenv').config()
 
 const express = require('express')
 const app = express()
@@ -8,10 +8,11 @@ const cron = require('node-cron')
 const sub = require('./models/sub')
 const subs = require('./models/sub')
 
+console.log(process.env.IQAIR_KEY)
 
 //connection setup
 mongoose.set("strictQuery", false);
-mongoose.connect("mongodb://127.0.0.1:27017/new", {
+mongoose.connect(process.env.DATABASE_URL, {
    useNewUrlParser: true,
    useUnifiedTopology: true
 }, (err)=>{
@@ -33,7 +34,7 @@ app.use('/subs', subsRouter)
 app.get('/pollution-data/:x/:y',async (req, res) => {
 
         //fetch the data from the api using the two parameters
-        fetch(`http://api.airvisual.com/v2/nearest_city?lat=${req.params.x}&lon=${req.params.y}&key=b9987695-8e20-497f-a2b1-e3f568ee53c0`)
+        fetch(`http://api.airvisual.com/v2/nearest_city?lat=${req.params.x}&lon=${req.params.y}&key=${process.env.IQAIR_KEY}`)
         //convert to json than parse through to get only the pollution data of that zone
         .then(ress => ress.json())
         .then((data)=>{
@@ -46,7 +47,7 @@ app.get('/pollution-data/:x/:y',async (req, res) => {
 // build the cron job
   async function getAPI(x,y){
       // fetch the data from the api than parse it and putting in result
-    const apiStream = await fetch(`http://api.airvisual.com/v2/nearest_city?lat=${x}&lon=${y}&key=b9987695-8e20-497f-a2b1-e3f568ee53c0`)
+    const apiStream = await fetch(`http://api.airvisual.com/v2/nearest_city?lat=${x}&lon=${y}&key=${process.env.IQAIR_KEY}`)
                             .then((apiStream) => apiStream.json())
     const obj = JSON.parse(JSON.stringify(apiStream))
     const result = obj.data.current.pollution.aqius
@@ -68,7 +69,7 @@ getAPI(48.856, 2.352)
 //endpoint to get the datetime where paris zone is most polluted
 app.get('/most-polluted', (req, res) => {
     // to get the collection where the data is collected
-    const client = new MongoClient("mongodb://127.0.0.1:27017/new");
+    const client = new MongoClient(process.env.DATABASE_URL);
     const db = client.db("new");
     const coll = db.collection("subs");
 
